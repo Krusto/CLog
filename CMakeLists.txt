@@ -5,7 +5,11 @@ project(Logger C CXX)
 option(ENABLE_VERBOSE_LOG "Enable verbose logging" ON)
 option(ENABLE_DEBUG_LOG "Enable debug log" ON)
 
-message("Compiler Version: ${CMAKE_C_COMPILER_VERSION}")
+message("C Compiler Version: ${CMAKE_C_COMPILER_VERSION}")
+message("C++ Compiler Version: ${CMAKE_CXX_COMPILER_VERSION}")
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
