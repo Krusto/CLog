@@ -24,4 +24,5 @@ function(add_example name isCXX)
     target_include_directories(${name} PRIVATE "${CMAKE_SOURCE_DIR}/src")
 endfunction(add_example)
 
-add_example(example1 "true")
+add_example(example1 "false")
+add_example(example2 "true")

@@ -6,10 +6,9 @@ int main()
 {
     // Initialize logger
     Logger::Create();
-    const char* log_file = "logfile.txt";
     // Add handlers
     Logger::AttachHandler(LogToStdout, NULL, OVERWRITE_POLICY);
-    Logger::AttachHandler(LogToFile, (void*) log_file, APPEND_POLICY);
+    Logger::AttachFileHandler("logfile.txt", APPEND_POLICY);
     // Simulate more logs
     {
         ScopedTimer timer("Timer");

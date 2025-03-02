@@ -55,8 +55,6 @@
 
 #ifdef __cplusplus
 #include <cstdint>
-// #include <atomic>
-// using std::LOGGER_PLATFORM_ATOMIC_TYPE;
 extern "C"
 {
 #endif
@@ -181,46 +179,33 @@ typedef pthread_t LOGGER_PLATFORM_THREAD;
     //Functions declarations
     //***********************************************************************************************************************
 
-    extern const char* LogLevelToString(LogLevel level);
-
     extern void LoggerCreate(void);
 
     extern void LoggerDestroy(void);
 
     extern void LogMessage(LogLevel level, const char* message, ...);
 
-    extern void AddLogHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy = APPEND_POLICY);
+    extern void LoggerAttachFileHandler(const char* filename, LogPolicy policy);
+
+    extern void LoggerAttachTerminalHandler(LogPolicy policy);
+
+    extern void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy);
 
     extern void LogToStdout(LogEvent* event, void* param);
 
     extern void LogToFile(LogEvent* event, void* param);
 
-    extern void InitRingBuffer(RingBufferT* rb, size_t capacity);
-
-    extern void FreeRingBuffer(RingBufferT* rb);
-
-    extern void LoggerGetTime(char* buffer, size_t buffer_size);
-
-    extern void WaitProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
-
-    extern void OverwriteProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
-
-#ifdef _WIN32
-    extern DWORD WINAPI WaitingConsumerThread(LPVOID param);
-    extern DWORD WINAPI OverwritingConsumerThread(LPVOID param);
-
-#endif
-
-#ifndef _WIN32
-    extern void* WaitingConsumerThread(void* param);
-    extern void* OverwritingConsumerThread(void* param);
-#endif
-
 
 #ifdef __cplusplus
 }// end external linkage
 
+
+//***********************************************************************************************************************
+//CPP Includes
+//***********************************************************************************************************************
+
 #include <utility>
+#include <string_view>
 
 //***********************************************************************************************************************
 //CPP Logger Wrapper Declarations
@@ -244,13 +229,19 @@ public:
     static void Warning(const char* message, Args... args);
     template <typename... Args>
     static void Error(const char* message, Args... args);
-    static void AttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy = APPEND_POLICY);
+    static void AttachHandler(void (*handler)(LogEvent*, void*), void* param,
+                              LogPolicy policy = LogPolicy::APPEND_POLICY);
+
+    static void AttachFileHandler(std::string_view filename, LogPolicy policy = LogPolicy::APPEND_POLICY);
+
+    static void AttachTerminalHandler(LogPolicy policy = LogPolicy::OVERWRITE_POLICY);
 };
 
 //***********************************************************************************************************************
 //CPP Logger Wrapper Definitions
 //***********************************************************************************************************************
 #ifdef LOGGER_IMPLEMENT
+
 void Logger::Create()
 {
     LoggerCreate();
@@ -293,13 +284,44 @@ void Logger::Error(const char* message, Args... args)
 
 void Logger::AttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
 {
-    AddLogHandler(handler, param, policy);
+    LoggerAttachHandler(handler, param, policy);
 }
+
+void Logger::AttachFileHandler(std::string_view filename, LogPolicy policy)
+{
+    LoggerAttachFileHandler(filename.data(), policy);
+}
+
+void Logger::AttachTerminalHandler(LogPolicy policy)
+{
+    LoggerAttachTerminalHandler(policy);
+}
+
 #endif
 extern "C"
 {
 #endif
 
+
+    static void _LoggerInitRingBuffer(RingBufferT* rb, size_t capacity);
+    static void _LoggerFreeRingBuffer(RingBufferT* rb);
+    static void _LoggerGetTime(char* buffer, size_t buffer_size);
+    static void _LoggerWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
+    static void _LoggerOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
+    static void _LoggerProcessEvent(LogHandler* handler, RingBufferT* rb);
+    static const char* _LoggerLogLevelToString(LogLevel level);
+
+
+#ifdef _WIN32
+    static DWORD WINAPI _LoggerWaitingConsumerThread(LPVOID param);
+    static DWORD WINAPI _LoggerOverwritingConsumerThread(LPVOID param);
+
+#endif
+
+#ifndef _WIN32
+    static void* _LoggerWaitingConsumerThread(void* param);
+    static void* _LoggerOverwritingConsumerThread(void* param);
+#endif
 #ifdef LOGGER_IMPLEMENT
     //***********************************************************************************************************************
     //Global Logger Instance
@@ -311,7 +333,73 @@ extern "C"
     //Functions definitions
     //***********************************************************************************************************************
 
-    const char* LogLevelToString(LogLevel level)
+    void LoggerCreate(void)
+    {
+        g_global_logger.handler_count = 0;
+    }
+
+    void LoggerDestroy(void)
+    {
+        for (int i = 0; i < g_global_logger.handler_count; i++)
+        {
+            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Stopping consumer thread %d\n", i);
+            LogHandler* handler = &g_global_logger.handlers[i];
+            LOGGER_ATOMIC_STORE(&handler->stop_thread, 1);
+            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Signaling consumer thread %d\n", i);
+            LOGGER_PLATFORM_COND_VAR_SIGNAL(&handler->primary_buffer.buffer_not_empty);
+            if (LOGGER_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
+            {
+                LOGGER_PLATFORM_COND_VAR_WAIT(&handler->primary_buffer.buffer_not_full, &handler->primary_buffer.mutex);
+            }
+            _LoggerFreeRingBuffer(&handler->primary_buffer);
+        }
+
+
+        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: All consumer threads stopped.\n");
+
+        for (int i = 0; i < g_global_logger.handler_count; i++)
+        {
+            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Joining consumer thread %d\n", i);
+            LOGGER_PLATFORM_THREAD_JOIN(&g_global_logger.threads[i]);
+        }
+        g_global_logger.handler_count = 0;
+        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: All ring buffers freed.\n");
+    }
+
+    // Default log handlers
+    void LogToStdout(LogEvent* event, void* param)
+    {
+        printf("[%s] %s\n", _LoggerLogLevelToString(event->log_level), event->message);
+    }
+
+    void LogToFile(LogEvent* event, void* param)
+    {
+        FILE* file = fopen((const char*) param, "a");
+        if (file)
+        {
+            fprintf(file, "[%s] %s\n", _LoggerLogLevelToString(event->log_level), event->message);
+            fclose(file);
+        }
+    }
+
+    // Log message handler (main entry point)
+    void LogMessage(LogLevel level, const char* message, ...)
+    {
+        for (int i = 0; i < g_global_logger.handler_count; i++)
+        {
+            LogHandler* handler = &g_global_logger.handlers[i];
+            va_list list;
+            va_start(list, message);
+            if (LOGGER_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
+            {
+                _LoggerWaitingProducer(handler, level, message, list);
+            }
+            else { _LoggerOverwritingProducer(handler, level, message, list); }
+            va_end(list);
+        }
+    }
+
+    inline static const char* _LoggerLogLevelToString(LogLevel level)
     {
         switch (level)
         {
@@ -328,30 +416,8 @@ extern "C"
         }
     }
 
-    const char* LogLevelAnsiColor(LogLevel level)
-    {
-        switch (level)
-        {
-            case INFO_LEVEL:
-                return "\e[0;32m";
-            case WARNING_LEVEL:
-                return "\e[0;33m";
-            case ERROR_LEVEL:
-                return "\e[0;31m";
-            case DEBUG_LEVEL:
-                return "\e[0;34m";
-            default:
-                return "\e[0m";
-        }
-    }
-
-    void LoggerCreate(void)
-    {
-        g_global_logger.handler_count = 0;
-    }
-
     // Initialize the ring buffer with dynamic memory allocation
-    void InitRingBuffer(RingBufferT* rb, size_t capacity)
+    inline static void _LoggerInitRingBuffer(RingBufferT* rb, size_t capacity)
     {
         rb->buffer = (LogEvent*) LOGGER_MALLOC(capacity * sizeof(LogEvent));
         rb->capacity = capacity;
@@ -363,94 +429,25 @@ extern "C"
     }
 
     // Free memory used by the ring buffer
-    void FreeRingBuffer(RingBufferT* rb)
+    inline static void _LoggerFreeRingBuffer(RingBufferT* rb)
     {
         if (rb->buffer) { LOGGER_FREE(rb->buffer); }
         LOGGER_PLATFORM_DESTROY_MUTEX(&rb->mutex);
     }
 
-    void LoggerDestroy(void)
-    {
-        for (int i = 0; i < g_global_logger.handler_count; i++)
-        {
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Stopping consumer thread %d\n", i);
-            LogHandler* handler = &g_global_logger.handlers[i];
-            LOGGER_ATOMIC_STORE(&handler->stop_thread, 1);
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Signaling consumer thread %d\n", i);
-            LOGGER_PLATFORM_COND_VAR_SIGNAL(&handler->primary_buffer.buffer_not_empty);
-            if (LOGGER_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
-            {
-                LOGGER_PLATFORM_COND_VAR_WAIT(&handler->primary_buffer.buffer_not_full, &handler->primary_buffer.mutex);
-            }
-            FreeRingBuffer(&handler->primary_buffer);
-        }
-
-
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: All consumer threads stopped.\n");
-
-        for (int i = 0; i < g_global_logger.handler_count; i++)
-        {
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Joining consumer thread %d\n", i);
-            LOGGER_PLATFORM_THREAD_JOIN(&g_global_logger.threads[i]);
-        }
-        g_global_logger.handler_count = 0;
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: All ring buffers freed.\n");
-    }
-
-    void LoggerGetTime(char* buffer, size_t buffer_size)
+    inline static void _LoggerGetTime(char* buffer, size_t buffer_size)
     {
         time_t current_time = time(NULL);
         struct tm* local_time = localtime(&current_time);
         strftime(buffer, buffer_size, "%I%p %M:%S", local_time);
     }
 
-    // Default log handlers
-    void LogToStdout(LogEvent* event, void* param)
-    {
-        char time_buffer[100];
-        LoggerGetTime(time_buffer, sizeof(time_buffer));
-
-        printf("[\e[0;30m%s\e[0m][%s%s\e[0m] %s\n", time_buffer, LogLevelAnsiColor(event->log_level),
-               LogLevelToString(event->log_level), event->message);
-        // printf("[%s] %s\n", LogLevelToString(event->log_level), event->message);
-    }
-
-    void LogToFile(LogEvent* event, void* param)
-    {
-        FILE* file = fopen((const char*) param, "a");
-        if (file)
-        {
-            // char time_buffer[100];
-            // LoggerGetTime(time_buffer, sizeof(time_buffer));
-
-            // fprintf(file, "[%s] [%s] %s\n", time_buffer, LogLevelToString(event->log_level), event->message);
-            fprintf(file, "[%s] %s\n", LogLevelToString(event->log_level), event->message);
-            fclose(file);
-        }
-    }
-
-    // Log message handler (main entry point)
-    void LogMessage(LogLevel level, const char* message, ...)
-    {
-        for (int i = 0; i < g_global_logger.handler_count; i++)
-        {
-            LogHandler* handler = &g_global_logger.handlers[i];
-            va_list list;
-            va_start(list, message);
-            if (LOGGER_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
-            {
-                WaitProducer(handler, level, message, list);
-            }
-            else { OverwriteProducer(handler, level, message, list); }
-            va_end(list);
-        }
-    }
-
-    void ProcessEvent(LogHandler* handler, RingBufferT* rb)
+    inline static void _LoggerProcessEvent(LogHandler* handler, RingBufferT* rb)
     {
         // Process from the primary buffer
         LogEvent* event = &rb->buffer[rb->read_index];
-        _INTERNAL_LOGGER_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", LogLevelToString(event->log_level), event->message);
+        _INTERNAL_LOGGER_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", _LoggerLogLevelToString(event->log_level),
+                                   event->message);
 
         // Handle Log Event
         handler->Handle(event, handler->param);
@@ -461,9 +458,9 @@ extern "C"
 
 // Consumer thread function for each handler
 #ifdef _WIN32
-    DWORD WINAPI WaitingConsumerThread(LPVOID param)
+    inline static DWORD WINAPI _LoggerWaitingConsumerThread(LPVOID param)
 #else
-    void* WaitingConsumerThread(void* param)
+    inline static void* _LoggerWaitingConsumerThread(void* param)
 #endif
     {
         LogHandler* handler = (LogHandler*) param;
@@ -492,7 +489,7 @@ extern "C"
                 if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1) { goto exit_wait_consumer; }
             }
 
-            ProcessEvent(handler, buffer);
+            _LoggerProcessEvent(handler, buffer);
 
             LOGGER_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
             LOGGER_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
@@ -501,7 +498,7 @@ extern "C"
         // Process remaining events
         LOGGER_PLATFORM_LOCK_MUTEX(&buffer->mutex);
 
-        while (buffer->read_index != buffer->write_index) { ProcessEvent(handler, buffer); }
+        while (buffer->read_index != buffer->write_index) { _LoggerProcessEvent(handler, buffer); }
 
     exit_wait_consumer:
 
@@ -519,7 +516,8 @@ extern "C"
     }
 
     // Add log event to the ring buffer
-    void WaitProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list)
+    inline static void _LoggerWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message,
+                                              va_list list)
     {
         RingBufferT* rb = &handler->primary_buffer;
         LOGGER_PLATFORM_LOCK_MUTEX(&rb->mutex);
@@ -561,14 +559,14 @@ extern "C"
 
     // Consumer thread function for each handler
 #ifdef _WIN32
-    DWORD WINAPI OverwritingConsumerThread(LPVOID param)
+    DWORD WINAPI _LoggerOverwritingConsumerThread(LPVOID param)
 #else
-    void* OverwritingConsumerThread(void* param)
+    void* _LoggerOverwritingConsumerThread(void* param)
 #endif
     {
         LogHandler* handler = (LogHandler*) param;
         RingBufferT* buffer = &handler->primary_buffer;
-        LogEvent event;
+        LogEvent* event;
         _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer thread started.\n");
 
         while (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 0)
@@ -601,11 +599,12 @@ extern "C"
                 }
             }
             // Process from the primary buffer
-            event = buffer->buffer[buffer->read_index];
-            _INTERNAL_LOGGER_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", LogLevelToString(event.log_level), event.message);
+            event = &buffer->buffer[buffer->read_index];
+            _INTERNAL_LOGGER_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", _LoggerLogLevelToString(event.log_level),
+                                       event.message);
 
             // Process log events
-            handler->Handle(&event, handler->param);
+            handler->Handle(event, handler->param);
 
 
             buffer->read_index = (buffer->read_index + 1) % buffer->capacity;
@@ -625,7 +624,8 @@ extern "C"
     }
 
     // Add log event to the ring buffer and overwrite the oldest message if full
-    void OverwriteProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list)
+    inline static void _LoggerOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message,
+                                                  va_list list)
     {
         RingBufferT* rb = &handler->primary_buffer;
         LOGGER_PLATFORM_LOCK_MUTEX(&rb->mutex);
@@ -661,30 +661,39 @@ extern "C"
     }
 
     // Add new log handler with separate ring buffers for primary and secondary
-    void AddLogHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
+    void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
     {
         if (g_global_logger.handler_count < 10)
         {
             LogHandler* logHandler = &g_global_logger.handlers[g_global_logger.handler_count++];
-            InitRingBuffer(&logHandler->primary_buffer, INITIAL_RING_BUFFER_SIZE);
+            _LoggerInitRingBuffer(&logHandler->primary_buffer, INITIAL_RING_BUFFER_SIZE);
             logHandler->Handle = handler;
             logHandler->param = param;
             LOGGER_ATOMIC_STORE(&logHandler->fill_policy, policy);
             if (policy == APPEND_POLICY)
             {
                 LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
-                                              WaitingConsumerThread,
+                                              _LoggerWaitingConsumerThread,
                                               &g_global_logger.handlers[g_global_logger.handler_count - 1]);
             }
             else if (policy == OVERWRITE_POLICY)
             {
                 LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
-                                              OverwritingConsumerThread,
+                                              _LoggerOverwritingConsumerThread,
                                               &g_global_logger.handlers[g_global_logger.handler_count - 1]);
             }
         }
     }
 
+    void LoggerAttachFileHandler(const char* filename, LogPolicy policy)
+    {
+        LoggerAttachHandler(LogToFile, (void*) filename, policy);
+    }
+
+    void LoggerAttachTerminalHandler(LogPolicy policy)
+    {
+        LoggerAttachHandler(LogToStdout, NULL, policy);
+    }
 #endif
 #ifdef __cplusplus
 }
