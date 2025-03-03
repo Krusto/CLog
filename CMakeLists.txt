@@ -8,6 +8,7 @@ project(${PROJECT_NAME} C CXX)
 
 option(ENABLE_VERBOSE_LOG "Enable verbose logging" ON)
 option(ENABLE_DEBUG_LOG "Enable debug log" ON)
+option(CLOG_BUILD_EXAMPLES "Build examples" OFF)
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build CLog as shared library" FORCE)
 
 if(BUILD_SHARED_LIBS)
@@ -41,9 +42,12 @@ function(add_example name isCXX)
     target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endfunction(add_example)
 
+
+if (CLOG_BUILD_EXAMPLES)
 add_example(example3 "false")
 target_link_libraries(example3 CLog)
 target_compile_definitions(example3 PRIVATE $<$<STREQUAL:${BUILD_LIB_FLAG},SHARED>:CLOG_BUILD_SHARED>)
 
 add_example(example1 "false")
 add_example(example2 "true")
+endif()
