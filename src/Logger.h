@@ -36,6 +36,16 @@
 #ifndef LOGGER_HEADER
 #define LOGGER_HEADER
 
+#ifdef CLOG_BUILD_SHARED
+#ifdef CLOG_EXPORTS
+#define CLOG_EXPORT __declspec(dllexport)
+#else
+#define CLOG_EXPORT __declspec(dllimport)
+#endif
+#else
+#define CLOG_EXPORT
+#endif
+
 //***********************************************************************************************************************
 //Includes
 //***********************************************************************************************************************
@@ -179,26 +189,18 @@ typedef pthread_t LOGGER_PLATFORM_THREAD;
     //Functions declarations
     //***********************************************************************************************************************
 
-    extern void LoggerCreate(void);
-
-    extern void LoggerDestroy(void);
-
-    extern void LogMessage(LogLevel level, const char* message, ...);
-
-    extern void LoggerAttachFileHandler(const char* filename, LogPolicy policy);
-
-    extern void LoggerAttachTerminalHandler(LogPolicy policy);
-
-    extern void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy);
-
-    extern void LogToStdout(LogEvent* event, void* param);
-
-    extern void LogToFile(LogEvent* event, void* param);
+    CLOG_EXPORT void LoggerCreate(void);
+    CLOG_EXPORT void LoggerDestroy(void);
+    CLOG_EXPORT void LogMessage(LogLevel level, const char* message, ...);
+    CLOG_EXPORT void LoggerAttachFileHandler(const char* filename, LogPolicy policy);
+    CLOG_EXPORT void LoggerAttachTerminalHandler(LogPolicy policy);
+    CLOG_EXPORT void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy);
+    CLOG_EXPORT void LogToStdout(LogEvent* event, void* param);
+    CLOG_EXPORT void LogToFile(LogEvent* event, void* param);
 
 
 #ifdef __cplusplus
-}// end external linkage
-
+}
 
 //***********************************************************************************************************************
 //CPP Includes
@@ -327,18 +329,18 @@ extern "C"
     //Global Logger Instance
     //***********************************************************************************************************************
 
-    LoggerT g_global_logger;
+    CLOG_EXPORT LoggerT g_global_logger;
 
     //***********************************************************************************************************************
     //Functions definitions
     //***********************************************************************************************************************
 
-    void LoggerCreate(void)
+    CLOG_EXPORT void LoggerCreate(void)
     {
         g_global_logger.handler_count = 0;
     }
 
-    void LoggerDestroy(void)
+    CLOG_EXPORT void LoggerDestroy(void)
     {
         for (int i = 0; i < g_global_logger.handler_count; i++)
         {
@@ -367,12 +369,12 @@ extern "C"
     }
 
     // Default log handlers
-    void LogToStdout(LogEvent* event, void* param)
+    CLOG_EXPORT void LogToStdout(LogEvent* event, void* param)
     {
         printf("[%s] %s\n", _LoggerLogLevelToString(event->log_level), event->message);
     }
 
-    void LogToFile(LogEvent* event, void* param)
+    CLOG_EXPORT void LogToFile(LogEvent* event, void* param)
     {
         FILE* file = fopen((const char*) param, "a");
         if (file)
@@ -383,7 +385,7 @@ extern "C"
     }
 
     // Log message handler (main entry point)
-    void LogMessage(LogLevel level, const char* message, ...)
+    CLOG_EXPORT void LogMessage(LogLevel level, const char* message, ...)
     {
         for (int i = 0; i < g_global_logger.handler_count; i++)
         {
@@ -397,6 +399,41 @@ extern "C"
             else { _LoggerOverwritingProducer(handler, level, message, list); }
             va_end(list);
         }
+    }
+
+    // Add new log handler with separate ring buffers for primary and secondary
+    CLOG_EXPORT void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
+    {
+        if (g_global_logger.handler_count < 10)
+        {
+            LogHandler* logHandler = &g_global_logger.handlers[g_global_logger.handler_count++];
+            _LoggerInitRingBuffer(&logHandler->primary_buffer, INITIAL_RING_BUFFER_SIZE);
+            logHandler->Handle = handler;
+            logHandler->param = param;
+            LOGGER_ATOMIC_STORE(&logHandler->fill_policy, policy);
+            if (policy == APPEND_POLICY)
+            {
+                LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
+                                              _LoggerWaitingConsumerThread,
+                                              &g_global_logger.handlers[g_global_logger.handler_count - 1]);
+            }
+            else if (policy == OVERWRITE_POLICY)
+            {
+                LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
+                                              _LoggerOverwritingConsumerThread,
+                                              &g_global_logger.handlers[g_global_logger.handler_count - 1]);
+            }
+        }
+    }
+
+    CLOG_EXPORT void LoggerAttachFileHandler(const char* filename, LogPolicy policy)
+    {
+        LoggerAttachHandler(LogToFile, (void*) filename, policy);
+    }
+
+    CLOG_EXPORT void LoggerAttachTerminalHandler(LogPolicy policy)
+    {
+        LoggerAttachHandler(LogToStdout, NULL, policy);
     }
 
     inline static const char* _LoggerLogLevelToString(LogLevel level)
@@ -660,40 +697,7 @@ extern "C"
         LOGGER_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
     }
 
-    // Add new log handler with separate ring buffers for primary and secondary
-    void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
-    {
-        if (g_global_logger.handler_count < 10)
-        {
-            LogHandler* logHandler = &g_global_logger.handlers[g_global_logger.handler_count++];
-            _LoggerInitRingBuffer(&logHandler->primary_buffer, INITIAL_RING_BUFFER_SIZE);
-            logHandler->Handle = handler;
-            logHandler->param = param;
-            LOGGER_ATOMIC_STORE(&logHandler->fill_policy, policy);
-            if (policy == APPEND_POLICY)
-            {
-                LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
-                                              _LoggerWaitingConsumerThread,
-                                              &g_global_logger.handlers[g_global_logger.handler_count - 1]);
-            }
-            else if (policy == OVERWRITE_POLICY)
-            {
-                LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
-                                              _LoggerOverwritingConsumerThread,
-                                              &g_global_logger.handlers[g_global_logger.handler_count - 1]);
-            }
-        }
-    }
 
-    void LoggerAttachFileHandler(const char* filename, LogPolicy policy)
-    {
-        LoggerAttachHandler(LogToFile, (void*) filename, policy);
-    }
-
-    void LoggerAttachTerminalHandler(LogPolicy policy)
-    {
-        LoggerAttachHandler(LogToStdout, NULL, policy);
-    }
 #endif
 #ifdef __cplusplus
 }
