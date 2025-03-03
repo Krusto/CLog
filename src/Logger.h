@@ -30,11 +30,11 @@
 //
 // @section DESCRIPTION
 //
-// Logger declarations
+// CLog declarations
 //
 
-#ifndef LOGGER_HEADER
-#define LOGGER_HEADER
+#ifndef CLog_HEADER
+#define CLog_HEADER
 
 #ifdef CLOG_BUILD_SHARED
 #ifdef CLOG_EXPORTS
@@ -71,9 +71,9 @@ extern "C"
 //**********************************************************************************************************************
 //Macro definitions
 //**********************************************************************************************************************
-#ifndef LOGGER_NO_STD_MALLOC
-#define LOGGER_MALLOC malloc
-#define LOGGER_FREE free
+#ifndef CLog_NO_STD_MALLOC
+#define CLog_MALLOC malloc
+#define CLog_FREE free
 #endif
 
 #define INITIAL_RING_BUFFER_SIZE 1024
@@ -82,54 +82,53 @@ extern "C"
 #define BACKPRESSURE_THRESHOLD 0.8
 #define MAX_LOG_HANDLERS 10
 
-#ifdef LOGGER_ENABLE_INTERNAL_DEBUG_LOG
-#define _INTERNAL_LOGGER_DEBUG_LOG(...) printf(__VA_ARGS__)
+#ifdef CLog_ENABLE_INTERNAL_DEBUG_LOG
+#define _INTERNAL_CLog_DEBUG_LOG(...) printf(__VA_ARGS__)
 #else
-#define _INTERNAL_LOGGER_DEBUG_LOG(...) ((void) 0)
+#define _INTERNAL_CLog_DEBUG_LOG(...) ((void) 0)
 #endif
 
 // Platform-dependent Macros/Functions
 #ifdef _WIN32
-    typedef HANDLE LOGGER_PLATFORM_THREAD;
-#define LOGGER_PLATFORM_THREAD_JOIN(thread) WaitForSingleObject((*thread), INFINITE)
-#define LOGGER_PLATFORM_SLEEP(ms) Sleep(ms)// Windows Sleep (ms)
-#define LOGGER_PLATFORM_THREAD_CREATE(thread, func, arg) (*thread) = CreateThread(NULL, 0, func, arg, 0, NULL)
-#define LOGGER_PLATFORM_THREAD_YIELD() SwitchToThread()
-#define LOGGER_ATOMIC_STORE(ptr, value) InterlockedExchange((LONG*) ptr, (LONG) value)
-#define LOGGER_ATOMIC_LOAD(ptr) (size_t)(InterlockedCompareExchange((LONG*) ptr, 0, 0))
-#define LOGGER_PLATFORM_MUTEX CRITICAL_SECTION
-#define LOGGER_PLATFORM_COND_VAR CONDITION_VARIABLE
-#define LOGGER_PLATFORM_INIT_MUTEX(mutex) InitializeCriticalSection(mutex)
-#define LOGGER_PLATFORM_DESTROY_MUTEX(mutex) DeleteCriticalSection(mutex)
-#define LOGGER_PLATFORM_LOCK_MUTEX(mutex) EnterCriticalSection(mutex)
-#define LOGGER_PLATFORM_UNLOCK_MUTEX(mutex) LeaveCriticalSection(mutex)
-#define LOGGER_PLATFORM_INIT_COND_VAR(cond_var) InitializeConditionVariable(cond_var)
-#define LOGGER_PLATFORM_COND_VAR_WAIT(cond_var, mutex) SleepConditionVariableCS(cond_var, mutex, INFINITE)
-#define LOGGER_PLATFORM_COND_VAR_SIGNAL(cond_var) WakeConditionVariable(cond_var)
-#define LOGGER_PLATFORM_ATOMIC_CMP_EXCHANGE(ptr, expected, desired)                                                    \
+    typedef HANDLE CLog_PLATFORM_THREAD;
+#define CLog_PLATFORM_THREAD_JOIN(thread) WaitForSingleObject((*thread), INFINITE)
+#define CLog_PLATFORM_SLEEP(ms) Sleep(ms)// Windows Sleep (ms)
+#define CLog_PLATFORM_THREAD_CREATE(thread, func, arg) (*thread) = CreateThread(NULL, 0, func, arg, 0, NULL)
+#define CLog_PLATFORM_THREAD_YIELD() SwitchToThread()
+#define CLog_ATOMIC_STORE(ptr, value) InterlockedExchange((LONG*) ptr, (LONG) value)
+#define CLog_ATOMIC_LOAD(ptr) (size_t)(InterlockedCompareExchange((LONG*) ptr, 0, 0))
+#define CLog_PLATFORM_MUTEX CRITICAL_SECTION
+#define CLog_PLATFORM_COND_VAR CONDITION_VARIABLE
+#define CLog_PLATFORM_INIT_MUTEX(mutex) InitializeCriticalSection(mutex)
+#define CLog_PLATFORM_DESTROY_MUTEX(mutex) DeleteCriticalSection(mutex)
+#define CLog_PLATFORM_LOCK_MUTEX(mutex) EnterCriticalSection(mutex)
+#define CLog_PLATFORM_UNLOCK_MUTEX(mutex) LeaveCriticalSection(mutex)
+#define CLog_PLATFORM_INIT_COND_VAR(cond_var) InitializeConditionVariable(cond_var)
+#define CLog_PLATFORM_COND_VAR_WAIT(cond_var, mutex) SleepConditionVariableCS(cond_var, mutex, INFINITE)
+#define CLog_PLATFORM_COND_VAR_SIGNAL(cond_var) WakeConditionVariable(cond_var)
+#define CLog_PLATFORM_ATOMIC_CMP_EXCHANGE(ptr, expected, desired)                                                      \
     InterlockedCompareExchange((LONG*) ptr, (LONG) desired, (LONG) expected)
 
-#define LOGGER_PLATFORM_ATOMIC_TYPE size_t
+#define CLog_PLATFORM_ATOMIC_TYPE size_t
 #else
-typedef pthread_t LOGGER_PLATFORM_THREAD;
-#define LOGGER_PLATFORM_THREAD_JOIN(thread) pthread_join(thread, NULL)
-#define LOGGER_PLATFORM_SLEEP(ms) usleep((ms) * 1000)// Linux usleep (ms to us)
-#define LOGGER_PLATFORM_THREAD_CREATE(thread, func, arg) pthread_create(thread, NULL, func, arg)
-#define LOGGER_PLATFORM_THREAD_YIELD() sched_yield()
-#define LOGGER_ATOMIC_STORE(ptr, value) atomic_store(ptr, value)
-#define LOGGER_ATOMIC_LOAD(ptr) atomic_load(ptr)
-#define LOGGER_PLATFORM_MUTEX pthread_mutex_t
-#define LOGGER_PLATFORM_COND_VAR pthread_cond_t
-#define LOGGER_PLATFORM_INIT_MUTEX(mutex) pthread_mutex_init(mutex, NULL)
-#define LOGGER_PLATFORM_DESTROY_MUTEX(mutex) pthread_mutex_destroy(mutex)
-#define LOGGER_PLATFORM_LOCK_MUTEX(mutex) pthread_mutex_lock(mutex)
-#define LOGGER_PLATFORM_UNLOCK_MUTEX(mutex) pthread_mutex_unlock(mutex)
-#define LOGGER_PLATFORM_INIT_COND_VAR(cond_var) pthread_cond_init(cond_var, NULL)
-#define LOGGER_PLATFORM_COND_VAR_WAIT(cond_var, mutex) pthread_cond_wait(cond_var, mutex)
-#define LOGGER_PLATFORM_COND_VAR_SIGNAL(cond_var) pthread_cond_signal(cond_var)
-#define LOGGER_PLATFORM_ATOMIC_CMP_EXCHANGE(ptr, expected, desired)                                                    \
-    atomic_compare_exchange_strong(ptr, expected, desired)
-#define LOGGER_PLATFORM_ATOMIC_TYPE _Atomic size_t
+typedef pthread_t CLog_PLATFORM_THREAD;
+#define CLog_PLATFORM_THREAD_JOIN(thread) pthread_join(thread, NULL)
+#define CLog_PLATFORM_SLEEP(ms) usleep((ms) * 1000)// Linux usleep (ms to us)
+#define CLog_PLATFORM_THREAD_CREATE(thread, func, arg) pthread_create(thread, NULL, func, arg)
+#define CLog_PLATFORM_THREAD_YIELD() sched_yield()
+#define CLog_ATOMIC_STORE(ptr, value) atomic_store(ptr, value)
+#define CLog_ATOMIC_LOAD(ptr) atomic_load(ptr)
+#define CLog_PLATFORM_MUTEX pthread_mutex_t
+#define CLog_PLATFORM_COND_VAR pthread_cond_t
+#define CLog_PLATFORM_INIT_MUTEX(mutex) pthread_mutex_init(mutex, NULL)
+#define CLog_PLATFORM_DESTROY_MUTEX(mutex) pthread_mutex_destroy(mutex)
+#define CLog_PLATFORM_LOCK_MUTEX(mutex) pthread_mutex_lock(mutex)
+#define CLog_PLATFORM_UNLOCK_MUTEX(mutex) pthread_mutex_unlock(mutex)
+#define CLog_PLATFORM_INIT_COND_VAR(cond_var) pthread_cond_init(cond_var, NULL)
+#define CLog_PLATFORM_COND_VAR_WAIT(cond_var, mutex) pthread_cond_wait(cond_var, mutex)
+#define CLog_PLATFORM_COND_VAR_SIGNAL(cond_var) pthread_cond_signal(cond_var)
+#define CLog_PLATFORM_ATOMIC_CMP_EXCHANGE(ptr, expected, desired) atomic_compare_exchange_strong(ptr, expected, desired)
+#define CLog_PLATFORM_ATOMIC_TYPE _Atomic size_t
 #endif
     //***********************************************************************************************************************
     //Type definitions
@@ -159,44 +158,44 @@ typedef pthread_t LOGGER_PLATFORM_THREAD;
     typedef struct
     {
         size_t capacity;
-        LOGGER_PLATFORM_ATOMIC_TYPE write_index;
-        LOGGER_PLATFORM_ATOMIC_TYPE read_index;
+        CLog_PLATFORM_ATOMIC_TYPE write_index;
+        CLog_PLATFORM_ATOMIC_TYPE read_index;
         LogEvent* buffer;
-        LOGGER_PLATFORM_COND_VAR buffer_not_full;
-        LOGGER_PLATFORM_COND_VAR buffer_not_empty;
-        LOGGER_PLATFORM_MUTEX mutex;
+        CLog_PLATFORM_COND_VAR buffer_not_full;
+        CLog_PLATFORM_COND_VAR buffer_not_empty;
+        CLog_PLATFORM_MUTEX mutex;
     } RingBufferT;
 
-    // Logger handler structure
+    // CLog handler structure
     typedef struct
     {
         RingBufferT primary_buffer;
         void (*Handle)(LogEvent*, void*);
         void* param;
-        LOGGER_PLATFORM_ATOMIC_TYPE stop_thread;
-        LOGGER_PLATFORM_ATOMIC_TYPE fill_policy;
+        CLog_PLATFORM_ATOMIC_TYPE stop_thread;
+        CLog_PLATFORM_ATOMIC_TYPE fill_policy;
     } LogHandler;
 
-    // Logger structure
+    // CLog structure
     typedef struct
     {
         LogHandler handlers[MAX_LOG_HANDLERS];
-        LOGGER_PLATFORM_THREAD threads[MAX_LOG_HANDLERS];
+        CLog_PLATFORM_THREAD threads[MAX_LOG_HANDLERS];
         int handler_count;
-    } LoggerT;
+    } CLogT;
 
     //***********************************************************************************************************************
     //Functions declarations
     //***********************************************************************************************************************
 
-    CLOG_EXPORT void LoggerCreate(void);
-    CLOG_EXPORT void LoggerDestroy(void);
-    CLOG_EXPORT void LogMessage(LogLevel level, const char* message, ...);
-    CLOG_EXPORT void LoggerAttachFileHandler(const char* filename, LogPolicy policy);
-    CLOG_EXPORT void LoggerAttachTerminalHandler(LogPolicy policy);
-    CLOG_EXPORT void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy);
-    CLOG_EXPORT void LogToStdout(LogEvent* event, void* param);
-    CLOG_EXPORT void LogToFile(LogEvent* event, void* param);
+    CLOG_EXPORT void CLogCreate(void);
+    CLOG_EXPORT void CLogDestroy(void);
+    CLOG_EXPORT void CLogMessage(LogLevel level, const char* message, ...);
+    CLOG_EXPORT void CLogAttachFileHandler(const char* filename, LogPolicy policy);
+    CLOG_EXPORT void CLogAttachTerminalHandler(LogPolicy policy);
+    CLOG_EXPORT void CLogAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy);
+    CLOG_EXPORT void CLogToStdout(LogEvent* event, void* param);
+    CLOG_EXPORT void CLogToFile(LogEvent* event, void* param);
 
 
 #ifdef __cplusplus
@@ -210,13 +209,13 @@ typedef pthread_t LOGGER_PLATFORM_THREAD;
 #include <string_view>
 
 //***********************************************************************************************************************
-//CPP Logger Wrapper Declarations
+//CPP CLog Wrapper Declarations
 //***********************************************************************************************************************
-class Logger
+class CLog
 {
 public:
-    Logger() = delete;
-    ~Logger() = delete;
+    CLog() = delete;
+    ~CLog() = delete;
 
 public:
     static void Create();
@@ -240,63 +239,63 @@ public:
 };
 
 //***********************************************************************************************************************
-//CPP Logger Wrapper Definitions
+//CPP CLog Wrapper Definitions
 //***********************************************************************************************************************
-#ifdef LOGGER_IMPLEMENT
+#ifdef CLog_IMPLEMENT
 
-void Logger::Create()
+void CLog::Create()
 {
-    LoggerCreate();
+    CLogCreate();
 }
 
-void Logger::Destroy()
+void CLog::Destroy()
 {
-    LoggerDestroy();
-}
-
-template <typename... Args>
-void Logger::Log(LogLevel level, const char* message, Args... args)
-{
-    LogMessage(level, message, std::forward<Args>(args)...);
+    CLogDestroy();
 }
 
 template <typename... Args>
-void Logger::Debug(const char* message, Args... args)
+void CLog::Log(LogLevel level, const char* message, Args... args)
+{
+    CLogMessage(level, message, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void CLog::Debug(const char* message, Args... args)
 {
     Log(DEBUG_LEVEL, message, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-void Logger::Info(const char* message, Args... args)
+void CLog::Info(const char* message, Args... args)
 {
     Log(INFO_LEVEL, message, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-void Logger::Warning(const char* message, Args... args)
+void CLog::Warning(const char* message, Args... args)
 {
     Log(WARNING_LEVEL, message, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-void Logger::Error(const char* message, Args... args)
+void CLog::Error(const char* message, Args... args)
 {
     Log(ERROR_LEVEL, message, std::forward<Args>(args)...);
 }
 
-void Logger::AttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
+void CLog::AttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
 {
-    LoggerAttachHandler(handler, param, policy);
+    CLogAttachHandler(handler, param, policy);
 }
 
-void Logger::AttachFileHandler(std::string_view filename, LogPolicy policy)
+void CLog::AttachFileHandler(std::string_view filename, LogPolicy policy)
 {
-    LoggerAttachFileHandler(filename.data(), policy);
+    CLogAttachFileHandler(filename.data(), policy);
 }
 
-void Logger::AttachTerminalHandler(LogPolicy policy)
+void CLog::AttachTerminalHandler(LogPolicy policy)
 {
-    LoggerAttachTerminalHandler(policy);
+    CLogAttachTerminalHandler(policy);
 }
 
 #endif
@@ -305,138 +304,138 @@ extern "C"
 #endif
 
 
-    static void _LoggerInitRingBuffer(RingBufferT* rb, size_t capacity);
-    static void _LoggerFreeRingBuffer(RingBufferT* rb);
-    static void _LoggerGetTime(char* buffer, size_t buffer_size);
-    static void _LoggerWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
-    static void _LoggerOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
-    static void _LoggerProcessEvent(LogHandler* handler, RingBufferT* rb);
-    static const char* _LoggerLogLevelToString(LogLevel level);
+    static void _CLogInitRingBuffer(RingBufferT* rb, size_t capacity);
+    static void _CLogFreeRingBuffer(RingBufferT* rb);
+    static void _CLogGetTime(char* buffer, size_t buffer_size);
+    static void _CLogWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
+    static void _CLogOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
+    static void _CLogProcessEvent(LogHandler* handler, RingBufferT* rb);
+    static const char* _CLogLogLevelToString(LogLevel level);
 
 
 #ifdef _WIN32
-    static DWORD WINAPI _LoggerWaitingConsumerThread(LPVOID param);
-    static DWORD WINAPI _LoggerOverwritingConsumerThread(LPVOID param);
+    static DWORD WINAPI _CLogWaitingConsumerThread(LPVOID param);
+    static DWORD WINAPI _CLogOverwritingConsumerThread(LPVOID param);
 
 #endif
 
 #ifndef _WIN32
-    static void* _LoggerWaitingConsumerThread(void* param);
-    static void* _LoggerOverwritingConsumerThread(void* param);
+    static void* _CLogWaitingConsumerThread(void* param);
+    static void* _CLogOverwritingConsumerThread(void* param);
 #endif
-#ifdef LOGGER_IMPLEMENT
+#ifdef CLog_IMPLEMENT
     //***********************************************************************************************************************
-    //Global Logger Instance
+    //Global CLog Instance
     //***********************************************************************************************************************
 
-    CLOG_EXPORT LoggerT g_global_logger;
+    CLOG_EXPORT CLogT g_global_CLog;
 
     //***********************************************************************************************************************
     //Functions definitions
     //***********************************************************************************************************************
 
-    CLOG_EXPORT void LoggerCreate(void)
+    CLOG_EXPORT void CLogCreate(void)
     {
-        g_global_logger.handler_count = 0;
+        g_global_CLog.handler_count = 0;
     }
 
-    CLOG_EXPORT void LoggerDestroy(void)
+    CLOG_EXPORT void CLogDestroy(void)
     {
-        for (int i = 0; i < g_global_logger.handler_count; i++)
+        for (int i = 0; i < g_global_CLog.handler_count; i++)
         {
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Stopping consumer thread %d\n", i);
-            LogHandler* handler = &g_global_logger.handlers[i];
-            LOGGER_ATOMIC_STORE(&handler->stop_thread, 1);
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Signaling consumer thread %d\n", i);
-            LOGGER_PLATFORM_COND_VAR_SIGNAL(&handler->primary_buffer.buffer_not_empty);
-            if (LOGGER_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
+            _INTERNAL_CLog_DEBUG_LOG("DEBUG: Stopping consumer thread %d\n", i);
+            LogHandler* handler = &g_global_CLog.handlers[i];
+            CLog_ATOMIC_STORE(&handler->stop_thread, 1);
+            _INTERNAL_CLog_DEBUG_LOG("DEBUG: Signaling consumer thread %d\n", i);
+            CLog_PLATFORM_COND_VAR_SIGNAL(&handler->primary_buffer.buffer_not_empty);
+            if (CLog_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
             {
-                LOGGER_PLATFORM_COND_VAR_WAIT(&handler->primary_buffer.buffer_not_full, &handler->primary_buffer.mutex);
+                CLog_PLATFORM_COND_VAR_WAIT(&handler->primary_buffer.buffer_not_full, &handler->primary_buffer.mutex);
             }
-            _LoggerFreeRingBuffer(&handler->primary_buffer);
+            _CLogFreeRingBuffer(&handler->primary_buffer);
         }
 
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: All consumer threads stopped.\n");
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: All consumer threads stopped.\n");
 
-        for (int i = 0; i < g_global_logger.handler_count; i++)
+        for (int i = 0; i < g_global_CLog.handler_count; i++)
         {
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Joining consumer thread %d\n", i);
-            LOGGER_PLATFORM_THREAD_JOIN(&g_global_logger.threads[i]);
+            _INTERNAL_CLog_DEBUG_LOG("DEBUG: Joining consumer thread %d\n", i);
+            CLog_PLATFORM_THREAD_JOIN(&g_global_CLog.threads[i]);
         }
-        g_global_logger.handler_count = 0;
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: All ring buffers freed.\n");
+        g_global_CLog.handler_count = 0;
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: All ring buffers freed.\n");
     }
 
     // Default log handlers
-    CLOG_EXPORT void LogToStdout(LogEvent* event, void* param)
+    CLOG_EXPORT void CLogToStdout(LogEvent* event, void* param)
     {
-        printf("[%s] %s\n", _LoggerLogLevelToString(event->log_level), event->message);
+        printf("[%s] %s\n", _CLogLogLevelToString(event->log_level), event->message);
     }
 
-    CLOG_EXPORT void LogToFile(LogEvent* event, void* param)
+    CLOG_EXPORT void CLogToFile(LogEvent* event, void* param)
     {
         FILE* file = fopen((const char*) param, "a");
         if (file)
         {
-            fprintf(file, "[%s] %s\n", _LoggerLogLevelToString(event->log_level), event->message);
+            fprintf(file, "[%s] %s\n", _CLogLogLevelToString(event->log_level), event->message);
             fclose(file);
         }
     }
 
     // Log message handler (main entry point)
-    CLOG_EXPORT void LogMessage(LogLevel level, const char* message, ...)
+    CLOG_EXPORT void CLogMessage(LogLevel level, const char* message, ...)
     {
-        for (int i = 0; i < g_global_logger.handler_count; i++)
+        for (int i = 0; i < g_global_CLog.handler_count; i++)
         {
-            LogHandler* handler = &g_global_logger.handlers[i];
+            LogHandler* handler = &g_global_CLog.handlers[i];
             va_list list;
             va_start(list, message);
-            if (LOGGER_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
+            if (CLog_ATOMIC_LOAD(&handler->fill_policy) == APPEND_POLICY)
             {
-                _LoggerWaitingProducer(handler, level, message, list);
+                _CLogWaitingProducer(handler, level, message, list);
             }
-            else { _LoggerOverwritingProducer(handler, level, message, list); }
+            else { _CLogOverwritingProducer(handler, level, message, list); }
             va_end(list);
         }
     }
 
     // Add new log handler with separate ring buffers for primary and secondary
-    CLOG_EXPORT void LoggerAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
+    CLOG_EXPORT void CLogAttachHandler(void (*handler)(LogEvent*, void*), void* param, LogPolicy policy)
     {
-        if (g_global_logger.handler_count < 10)
+        if (g_global_CLog.handler_count < 10)
         {
-            LogHandler* logHandler = &g_global_logger.handlers[g_global_logger.handler_count++];
-            _LoggerInitRingBuffer(&logHandler->primary_buffer, INITIAL_RING_BUFFER_SIZE);
+            LogHandler* logHandler = &g_global_CLog.handlers[g_global_CLog.handler_count++];
+            _CLogInitRingBuffer(&logHandler->primary_buffer, INITIAL_RING_BUFFER_SIZE);
             logHandler->Handle = handler;
             logHandler->param = param;
-            LOGGER_ATOMIC_STORE(&logHandler->fill_policy, policy);
+            CLog_ATOMIC_STORE(&logHandler->fill_policy, policy);
             if (policy == APPEND_POLICY)
             {
-                LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
-                                              _LoggerWaitingConsumerThread,
-                                              &g_global_logger.handlers[g_global_logger.handler_count - 1]);
+                CLog_PLATFORM_THREAD_CREATE(&g_global_CLog.threads[g_global_CLog.handler_count - 1],
+                                            _CLogWaitingConsumerThread,
+                                            &g_global_CLog.handlers[g_global_CLog.handler_count - 1]);
             }
             else if (policy == OVERWRITE_POLICY)
             {
-                LOGGER_PLATFORM_THREAD_CREATE(&g_global_logger.threads[g_global_logger.handler_count - 1],
-                                              _LoggerOverwritingConsumerThread,
-                                              &g_global_logger.handlers[g_global_logger.handler_count - 1]);
+                CLog_PLATFORM_THREAD_CREATE(&g_global_CLog.threads[g_global_CLog.handler_count - 1],
+                                            _CLogOverwritingConsumerThread,
+                                            &g_global_CLog.handlers[g_global_CLog.handler_count - 1]);
             }
         }
     }
 
-    CLOG_EXPORT void LoggerAttachFileHandler(const char* filename, LogPolicy policy)
+    CLOG_EXPORT void CLogAttachFileHandler(const char* filename, LogPolicy policy)
     {
-        LoggerAttachHandler(LogToFile, (void*) filename, policy);
+        CLogAttachHandler(CLogToFile, (void*) filename, policy);
     }
 
-    CLOG_EXPORT void LoggerAttachTerminalHandler(LogPolicy policy)
+    CLOG_EXPORT void CLogAttachTerminalHandler(LogPolicy policy)
     {
-        LoggerAttachHandler(LogToStdout, NULL, policy);
+        CLogAttachHandler(CLogToStdout, NULL, policy);
     }
 
-    inline static const char* _LoggerLogLevelToString(LogLevel level)
+    inline static const char* _CLogLogLevelToString(LogLevel level)
     {
         switch (level)
         {
@@ -454,37 +453,36 @@ extern "C"
     }
 
     // Initialize the ring buffer with dynamic memory allocation
-    inline static void _LoggerInitRingBuffer(RingBufferT* rb, size_t capacity)
+    inline static void _CLogInitRingBuffer(RingBufferT* rb, size_t capacity)
     {
-        rb->buffer = (LogEvent*) LOGGER_MALLOC(capacity * sizeof(LogEvent));
+        rb->buffer = (LogEvent*) CLog_MALLOC(capacity * sizeof(LogEvent));
         rb->capacity = capacity;
-        LOGGER_ATOMIC_STORE(&rb->write_index, 0);
-        LOGGER_ATOMIC_STORE(&rb->read_index, 0);
-        LOGGER_PLATFORM_INIT_MUTEX(&rb->mutex);
-        LOGGER_PLATFORM_INIT_COND_VAR(&rb->buffer_not_full);
-        LOGGER_PLATFORM_INIT_COND_VAR(&rb->buffer_not_empty);
+        CLog_ATOMIC_STORE(&rb->write_index, 0);
+        CLog_ATOMIC_STORE(&rb->read_index, 0);
+        CLog_PLATFORM_INIT_MUTEX(&rb->mutex);
+        CLog_PLATFORM_INIT_COND_VAR(&rb->buffer_not_full);
+        CLog_PLATFORM_INIT_COND_VAR(&rb->buffer_not_empty);
     }
 
     // Free memory used by the ring buffer
-    inline static void _LoggerFreeRingBuffer(RingBufferT* rb)
+    inline static void _CLogFreeRingBuffer(RingBufferT* rb)
     {
-        if (rb->buffer) { LOGGER_FREE(rb->buffer); }
-        LOGGER_PLATFORM_DESTROY_MUTEX(&rb->mutex);
+        if (rb->buffer) { CLog_FREE(rb->buffer); }
+        CLog_PLATFORM_DESTROY_MUTEX(&rb->mutex);
     }
 
-    inline static void _LoggerGetTime(char* buffer, size_t buffer_size)
+    inline static void _CLogGetTime(char* buffer, size_t buffer_size)
     {
         time_t current_time = time(NULL);
         struct tm* local_time = localtime(&current_time);
         strftime(buffer, buffer_size, "%I%p %M:%S", local_time);
     }
 
-    inline static void _LoggerProcessEvent(LogHandler* handler, RingBufferT* rb)
+    inline static void _CLogProcessEvent(LogHandler* handler, RingBufferT* rb)
     {
         // Process from the primary buffer
         LogEvent* event = &rb->buffer[rb->read_index];
-        _INTERNAL_LOGGER_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", _LoggerLogLevelToString(event->log_level),
-                                   event->message);
+        _INTERNAL_CLog_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", _CLogLogLevelToString(event->log_level), event->message);
 
         // Handle Log Event
         handler->Handle(event, handler->param);
@@ -495,55 +493,54 @@ extern "C"
 
 // Consumer thread function for each handler
 #ifdef _WIN32
-    inline static DWORD WINAPI _LoggerWaitingConsumerThread(LPVOID param)
+    inline static DWORD WINAPI _CLogWaitingConsumerThread(LPVOID param)
 #else
-    inline static void* _LoggerWaitingConsumerThread(void* param)
+    inline static void* _CLogWaitingConsumerThread(void* param)
 #endif
     {
         LogHandler* handler = (LogHandler*) param;
         RingBufferT* buffer = &handler->primary_buffer;
         LogEvent event;
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer thread started.\n");
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: Consumer thread started.\n");
 
-        while (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 0)
+        while (CLog_ATOMIC_LOAD(&handler->stop_thread) == 0)
         {
-            LOGGER_PLATFORM_LOCK_MUTEX(&buffer->mutex);
+            CLog_PLATFORM_LOCK_MUTEX(&buffer->mutex);
             // Print debug info
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer checking buffer. Read: %ld, Write: %ld\n", buffer->read_index,
-                                       buffer->write_index);
+            _INTERNAL_CLog_DEBUG_LOG("DEBUG: Consumer checking buffer. Read: %ld, Write: %ld\n", buffer->read_index,
+                                     buffer->write_index);
 
             while (buffer->read_index == buffer->write_index)
             {
-                _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Buffer empty. Consumer waiting...\n");
-                _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: stop_thread flag = %zu\n",
-                                           LOGGER_ATOMIC_LOAD(&handler->stop_thread));
+                _INTERNAL_CLog_DEBUG_LOG("DEBUG: Buffer empty. Consumer waiting...\n");
+                _INTERNAL_CLog_DEBUG_LOG("DEBUG: stop_thread flag = %zu\n", CLog_ATOMIC_LOAD(&handler->stop_thread));
 
-                if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 0)
+                if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 0)
                 {
-                    LOGGER_PLATFORM_COND_VAR_WAIT(&buffer->buffer_not_empty,
-                                                  &buffer->mutex);// wait for incoming message
+                    CLog_PLATFORM_COND_VAR_WAIT(&buffer->buffer_not_empty,
+                                                &buffer->mutex);// wait for incoming message
                 }
-                if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1) { goto exit_wait_consumer; }
+                if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 1) { goto exit_wait_consumer; }
             }
 
-            _LoggerProcessEvent(handler, buffer);
+            _CLogProcessEvent(handler, buffer);
 
-            LOGGER_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
-            LOGGER_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
+            CLog_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
+            CLog_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
         }
 
         // Process remaining events
-        LOGGER_PLATFORM_LOCK_MUTEX(&buffer->mutex);
+        CLog_PLATFORM_LOCK_MUTEX(&buffer->mutex);
 
-        while (buffer->read_index != buffer->write_index) { _LoggerProcessEvent(handler, buffer); }
+        while (buffer->read_index != buffer->write_index) { _CLogProcessEvent(handler, buffer); }
 
     exit_wait_consumer:
 
-        LOGGER_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
-        LOGGER_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
+        CLog_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
+        CLog_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer thread exiting.\n");
-        LOGGER_PLATFORM_SLEEP(30);
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: Consumer thread exiting.\n");
+        CLog_PLATFORM_SLEEP(30);
 
 #ifdef _WIN32
         return 0;
@@ -553,29 +550,28 @@ extern "C"
     }
 
     // Add log event to the ring buffer
-    inline static void _LoggerWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message,
-                                              va_list list)
+    inline static void _CLogWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list)
     {
         RingBufferT* rb = &handler->primary_buffer;
-        LOGGER_PLATFORM_LOCK_MUTEX(&rb->mutex);
+        CLog_PLATFORM_LOCK_MUTEX(&rb->mutex);
 
         size_t next_write_index = (rb->write_index + 1) % rb->capacity;
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Before Producer - Read: %ld, Write: %ld, Next: %zu\n", rb->read_index,
-                                   rb->write_index, next_write_index);
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: Before Producer - Read: %ld, Write: %ld, Next: %zu\n", rb->read_index,
+                                 rb->write_index, next_write_index);
 
         while (next_write_index == rb->read_index)
         {
-            _INTERNAL_LOGGER_DEBUG_LOG("WARNING: Buffer full, Waiting...\n");
-            if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1)
+            _INTERNAL_CLog_DEBUG_LOG("WARNING: Buffer full, Waiting...\n");
+            if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 1)
             {
-                LOGGER_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
+                CLog_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
                 return;
             }
-            LOGGER_PLATFORM_COND_VAR_WAIT(&rb->buffer_not_full, &rb->mutex);// wait for space
-            if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1)
+            CLog_PLATFORM_COND_VAR_WAIT(&rb->buffer_not_full, &rb->mutex);// wait for space
+            if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 1)
             {
-                LOGGER_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
+                CLog_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
                 return;
             }
             next_write_index = (rb->write_index + 1) % rb->capacity;
@@ -588,57 +584,56 @@ extern "C"
         event->message[MESSAGE_SIZE - 1] = '\0';
         rb->write_index = next_write_index;
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: After Producer - Read: %ld, Write: %ld\n", rb->read_index, rb->write_index);
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: After Producer - Read: %ld, Write: %ld\n", rb->read_index, rb->write_index);
 
-        LOGGER_PLATFORM_COND_VAR_SIGNAL(&rb->buffer_not_empty);// signal that there is something to read
-        LOGGER_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
+        CLog_PLATFORM_COND_VAR_SIGNAL(&rb->buffer_not_empty);// signal that there is something to read
+        CLog_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
     }
 
     // Consumer thread function for each handler
 #ifdef _WIN32
-    DWORD WINAPI _LoggerOverwritingConsumerThread(LPVOID param)
+    DWORD WINAPI _CLogOverwritingConsumerThread(LPVOID param)
 #else
-    void* _LoggerOverwritingConsumerThread(void* param)
+    void* _CLogOverwritingConsumerThread(void* param)
 #endif
     {
         LogHandler* handler = (LogHandler*) param;
         RingBufferT* buffer = &handler->primary_buffer;
         LogEvent* event;
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer thread started.\n");
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: Consumer thread started.\n");
 
-        while (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 0)
+        while (CLog_ATOMIC_LOAD(&handler->stop_thread) == 0)
         {
-            LOGGER_PLATFORM_LOCK_MUTEX(&buffer->mutex);
+            CLog_PLATFORM_LOCK_MUTEX(&buffer->mutex);
             // Print debug info
-            _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer checking buffer. Read: %ld, Write: %ld\n", buffer->read_index,
-                                       buffer->write_index);
+            _INTERNAL_CLog_DEBUG_LOG("DEBUG: Consumer checking buffer. Read: %ld, Write: %ld\n", buffer->read_index,
+                                     buffer->write_index);
 
             while (buffer->read_index == buffer->write_index)
             {
-                _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Buffer empty. Consumer waiting...\n");
-                _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: stop_thread flag = %zu\n",
-                                           LOGGER_ATOMIC_LOAD(&handler->stop_thread));
-                if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1)
+                _INTERNAL_CLog_DEBUG_LOG("DEBUG: Buffer empty. Consumer waiting...\n");
+                _INTERNAL_CLog_DEBUG_LOG("DEBUG: stop_thread flag = %zu\n", CLog_ATOMIC_LOAD(&handler->stop_thread));
+                if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 1)
                 {
-                    LOGGER_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
-                    LOGGER_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
+                    CLog_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
+                    CLog_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
                     goto exit_overwriting_consumer_thread;
                 }
                 else
                 {
-                    LOGGER_PLATFORM_COND_VAR_WAIT(&buffer->buffer_not_empty, &buffer->mutex);
-                    if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1)
+                    CLog_PLATFORM_COND_VAR_WAIT(&buffer->buffer_not_empty, &buffer->mutex);
+                    if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 1)
                     {
-                        LOGGER_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
-                        LOGGER_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
+                        CLog_PLATFORM_COND_VAR_SIGNAL(&buffer->buffer_not_full);
+                        CLog_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
                         goto exit_overwriting_consumer_thread;
                     }
                 }
             }
             // Process from the primary buffer
             event = &buffer->buffer[buffer->read_index];
-            _INTERNAL_LOGGER_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", _LoggerLogLevelToString(event.log_level),
-                                       event.message);
+            _INTERNAL_CLog_DEBUG_LOG("LOG PROCESSING: [%s] %s\n", _CLogLogLevelToString(event.log_level),
+                                     event.message);
 
             // Process log events
             handler->Handle(event, handler->param);
@@ -646,12 +641,12 @@ extern "C"
 
             buffer->read_index = (buffer->read_index + 1) % buffer->capacity;
 
-            LOGGER_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
+            CLog_PLATFORM_UNLOCK_MUTEX(&buffer->mutex);
         }
 
     exit_overwriting_consumer_thread:
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Consumer thread exiting.\n");
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: Consumer thread exiting.\n");
 
 #ifdef _WIN32
         return 0;
@@ -661,24 +656,24 @@ extern "C"
     }
 
     // Add log event to the ring buffer and overwrite the oldest message if full
-    inline static void _LoggerOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message,
-                                                  va_list list)
+    inline static void _CLogOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message,
+                                                va_list list)
     {
         RingBufferT* rb = &handler->primary_buffer;
-        LOGGER_PLATFORM_LOCK_MUTEX(&rb->mutex);
+        CLog_PLATFORM_LOCK_MUTEX(&rb->mutex);
 
         size_t next_write_index = (rb->write_index + 1) % rb->capacity;
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: Before Producer - Read: %ld, Write: %ld, Next: %zu\n", rb->read_index,
-                                   rb->write_index, next_write_index);
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: Before Producer - Read: %ld, Write: %ld, Next: %zu\n", rb->read_index,
+                                 rb->write_index, next_write_index);
 
         // Overwrite the oldest message if full
         while (next_write_index == rb->read_index)
         {
-            _INTERNAL_LOGGER_DEBUG_LOG("WARNING: Buffer full, overwriting oldest message.\n");
-            if (LOGGER_ATOMIC_LOAD(&handler->stop_thread) == 1)
+            _INTERNAL_CLog_DEBUG_LOG("WARNING: Buffer full, overwriting oldest message.\n");
+            if (CLog_ATOMIC_LOAD(&handler->stop_thread) == 1)
             {
-                LOGGER_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
+                CLog_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
                 return;
             }
             next_write_index = (rb->write_index + 2) % rb->capacity;
@@ -691,10 +686,10 @@ extern "C"
         event->message[MESSAGE_SIZE - 1] = '\0';
         rb->write_index = next_write_index;
 
-        _INTERNAL_LOGGER_DEBUG_LOG("DEBUG: After Producer - Read: %ld, Write: %ld\n", rb->read_index, rb->write_index);
+        _INTERNAL_CLog_DEBUG_LOG("DEBUG: After Producer - Read: %ld, Write: %ld\n", rb->read_index, rb->write_index);
 
-        LOGGER_PLATFORM_COND_VAR_SIGNAL(&rb->buffer_not_empty);
-        LOGGER_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
+        CLog_PLATFORM_COND_VAR_SIGNAL(&rb->buffer_not_empty);
+        CLog_PLATFORM_UNLOCK_MUTEX(&rb->mutex);
     }
 
 
