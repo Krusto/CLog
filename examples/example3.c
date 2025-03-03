@@ -1,4 +1,4 @@
-#include <Logger.h>
+#include <CLog.h>
 
 int main()
 {
@@ -7,7 +7,7 @@ int main()
     const char* log_file = "logfile.txt";
 
     // Add handlers
-    LoggerAttachHandler(LogToStdout, NULL, OVERWRITE_POLICY);
+    LoggerAttachHandler(CLogToStdout, NULL, OVERWRITE_POLICY);
     LoggerAttachFileHandler(log_file, APPEND_POLICY);
 
     // Simulate more logs
