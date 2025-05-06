@@ -37,11 +37,20 @@
 #define CLOG_HEADER
 // clang-format off
 #ifdef CLOG_BUILD_SHARED
+    
+#if defined(__GNUC__) || defined(__GNUG__) || defined(__clang__)
+    #ifdef CLOG_EXPORTS
+        #define CLOG_EXPORT __attribute__((visibility("default")))
+    #else
+        #define CLOG_EXPORT
+    #endif
+#elif defined(_MSC_VER)
     #ifdef CLOG_EXPORTS
         #define CLOG_EXPORT __declspec(dllexport)
     #else
         #define CLOG_EXPORT __declspec(dllimport)
     #endif
+#endif
 #else
     #define CLOG_EXPORT
 #endif
@@ -113,7 +122,7 @@ extern "C"
 #else
 typedef pthread_t CLOG_PLATFORM_THREAD;
 #define CLOG_PLATFORM_THREAD_JOIN(thread) pthread_join(thread, NULL)
-#define CLOG_PLATFORM_SLEEP(ms) usleep((ms) * 1000)// Linux usleep (ms to us)
+#define CLOG_PLATFORM_SLEEP(ms) usleep((ms) *1000)// Linux usleep (ms to us)
 #define CLOG_PLATFORM_THREAD_CREATE(thread, func, arg) pthread_create(thread, NULL, func, arg)
 #define CLOG_PLATFORM_THREAD_YIELD() sched_yield()
 #define CLOG_ATOMIC_STORE(ptr, value) atomic_store(ptr, value)
