@@ -1,3 +1,3 @@
 
 #define LOGGER_IMPLEMENT
-#include "CLog.h"
+#include "CLog/CLog.h"
