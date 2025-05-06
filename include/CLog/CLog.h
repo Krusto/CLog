@@ -67,19 +67,27 @@
 #ifdef _WIN32
 #include <windows.h>// For Sleep() and CreateThread()
 #else
-#include <unistd.h>   // For usleep() (Linux)
-#include <pthread.h>  // For pthread_create() (Linux)
-#include <stdatomic.h>// For atomic operations (Linux)
+#include <unistd.h> // For usleep() (Linux)
+#include <pthread.h>// For pthread_create() (Linux)
 #endif
 
 #ifdef __cplusplus
+#include <atomic>
 #include <cstdint>
 extern "C"
 {
+#else
+#ifndef _WIN32
+#include <stdatomic.h>// For atomic operations (Linux)
+#endif
 #endif
 //**********************************************************************************************************************
 //Macro definitions
 //**********************************************************************************************************************
+#if !defined(_MSC_VER)
+#define maybe_unused __attribute__((unused))
+#endif
+
 #ifndef CLOG_NO_STD_MALLOC
 #define CLOG_MALLOC malloc
 #define CLOG_FREE free
@@ -137,7 +145,11 @@ typedef pthread_t CLOG_PLATFORM_THREAD;
 #define CLOG_PLATFORM_COND_VAR_WAIT(cond_var, mutex) pthread_cond_wait(cond_var, mutex)
 #define CLOG_PLATFORM_COND_VAR_SIGNAL(cond_var) pthread_cond_signal(cond_var)
 #define CLOG_PLATFORM_ATOMIC_CMP_EXCHANGE(ptr, expected, desired) atomic_compare_exchange_strong(ptr, expected, desired)
-#define CLOG_PLATFORM_ATOMIC_TYPE _Atomic size_t
+#ifdef __cplusplus
+#define CLOG_PLATFORM_ATOMIC_TYPE std::atomic<size_t>
+#else
+#define CLOG_PLATFORM_ATOMIC_TYPE _Atomic(size_t)
+#endif
 #endif
     //***********************************************************************************************************************
     //Type definitions
@@ -314,13 +326,15 @@ extern "C"
 #endif
 
 
-    static void _CLogInitRingBuffer(RingBufferT* rb, size_t capacity);
-    static void _CLogFreeRingBuffer(RingBufferT* rb);
-    static void _CLogGetTime(char* buffer, size_t buffer_size);
-    static void _CLogWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
-    static void _CLogOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message, va_list list);
-    static void _CLogProcessEvent(LogHandler* handler, RingBufferT* rb);
-    static const char* _CLogLogLevelToString(LogLevel level);
+    static void _CLogInitRingBuffer(RingBufferT* rb, size_t capacity) maybe_unused;
+    static void _CLogFreeRingBuffer(RingBufferT* rb) maybe_unused;
+    static void _CLogGetTime(char* buffer, size_t buffer_size) maybe_unused;
+    static void _CLogWaitingProducer(LogHandler* handler, LogLevel log_level, const char* message,
+                                     va_list list) maybe_unused;
+    static void _CLogOverwritingProducer(LogHandler* handler, LogLevel log_level, const char* message,
+                                         va_list list) maybe_unused;
+    static void _CLogProcessEvent(LogHandler* handler, RingBufferT* rb) maybe_unused;
+    static const char* _CLogLogLevelToString(LogLevel level) maybe_unused;
 
 
 #ifdef _WIN32
@@ -330,8 +344,8 @@ extern "C"
 #endif
 
 #ifndef _WIN32
-    static void* _CLogWaitingConsumerThread(void* param);
-    static void* _CLogOverwritingConsumerThread(void* param);
+    static void* _CLogWaitingConsumerThread(void* param) maybe_unused;
+    static void* _CLogOverwritingConsumerThread(void* param) maybe_unused;
 #endif
 #ifdef CLOG_IMPLEMENT
     //***********************************************************************************************************************
@@ -380,6 +394,7 @@ extern "C"
     // Default log handlers
     CLOG_EXPORT void CLogToStdout(LogEvent* event, void* param)
     {
+        (void) param;
         printf("[%s] %s\n", _CLogLogLevelToString(event->log_level), event->message);
     }
 
@@ -523,7 +538,6 @@ extern "C"
     {
         LogHandler* handler = (LogHandler*) param;
         RingBufferT* buffer = &handler->primary_buffer;
-        LogEvent event;
         _INTERNAL_CLOG_DEBUG_LOG("DEBUG: Consumer thread started.\n");
 
         while (CLOG_ATOMIC_LOAD(&handler->stop_thread) == 0)
