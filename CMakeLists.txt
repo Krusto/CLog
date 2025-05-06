@@ -9,7 +9,7 @@ project(${PROJECT_NAME} C CXX)
 option(ENABLE_VERBOSE_LOG "Enable verbose logging" ON)
 option(ENABLE_DEBUG_LOG "Enable debug log" ON)
 option(CLOG_BUILD_EXAMPLES "Build examples" OFF)
-set(BUILD_SHARED_LIBS ON CACHE BOOL "Build CLog as shared library" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build CLog as shared library" FORCE)
 
 if(BUILD_SHARED_LIBS)
   message(STATUS "${PROJECT_NAME}: Build CLog as shared library")

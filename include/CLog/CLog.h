@@ -100,7 +100,7 @@ extern "C"
 // Platform-dependent Macros/Functions
 #ifdef _WIN32
     typedef HANDLE CLOG_PLATFORM_THREAD;
-#define CLOG_PLATFORM_THREAD_JOIN(thread) WaitForSingleObject((*thread), INFINITE)
+#define CLOG_PLATFORM_THREAD_JOIN(thread) WaitForSingleObject(thread, INFINITE)
 #define CLOG_PLATFORM_SLEEP(ms) Sleep(ms)// Windows Sleep (ms)
 #define CLOG_PLATFORM_THREAD_CREATE(thread, func, arg) (*thread) = CreateThread(NULL, 0, func, arg, 0, NULL)
 #define CLOG_PLATFORM_THREAD_YIELD() SwitchToThread()
@@ -371,7 +371,7 @@ extern "C"
         for (int i = 0; i < g_global_CLog.handler_count; i++)
         {
             _INTERNAL_CLOG_DEBUG_LOG("DEBUG: Joining consumer thread %d\n", i);
-            CLOG_PLATFORM_THREAD_JOIN(&g_global_CLog.threads[i]);
+            CLOG_PLATFORM_THREAD_JOIN(g_global_CLog.threads[i]);
         }
         g_global_CLog.handler_count = 0;
         _INTERNAL_CLOG_DEBUG_LOG("DEBUG: All ring buffers freed.\n");

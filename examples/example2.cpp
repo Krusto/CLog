@@ -1,4 +1,4 @@
-#define LOGGER_IMPLEMENT
+#define CLOG_IMPLEMENT
 #include <CLog/CLog.h>
 #include "Timer.hpp"
 
